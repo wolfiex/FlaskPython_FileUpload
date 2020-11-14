@@ -1,5 +1,5 @@
 # FlaskUpload_withPWD
-A simple flask upload program for multiple files requiring credential
+A simple flask upload program for multiple files requiring credentials
 
 
 
@@ -29,6 +29,15 @@ python app.py
 ```
 
 and the uploaded files should appear in a directory named `uploads_folder` 
+
+
+
+
+
+
+
+
+
 
 ## Install pysqlcypher
 #### Mac
