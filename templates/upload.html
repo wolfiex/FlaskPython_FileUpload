@@ -1,0 +1,276 @@
+<html>
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Scope+One&display=swap" rel="stylesheet">
+
+<body>
+
+    <div id="drop-area">
+        <label class="button" for="fileElem">Add files</label>
+        <p>
+            {% with messages = get_flashed_messages() %} {% if messages %}
+            <ul class=flashes>
+                {% for message in messages %}
+                <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %} {% endwith %}
+        </p>
+
+
+        <form class="my-form" action="/upload" enctype="multipart/form-data">
+
+            <input type="file" id="fileElem" multiple accept="file_extension">
+            <span> upload_key: <input id='psw' name="psw" type="password" /></span>
+
+            <br><br>
+
+
+        </form>
+        <progress id="progress-bar" max="100" value="10"></progress>
+        <div id="gallery"></div>
+    </div>
+
+    <p id='status'></p>
+
+
+
+    <style>
+        body {
+            background-color: #122932;
+            font-family: 'Scope One', serif;
+        }
+
+        span {
+            font-size: 9
+        }
+
+        p {
+            margin-top: 0;
+            margin: auto;
+            width: 50%;
+            color: white;
+        }
+
+        .my-form {
+            margin-bottom: 10px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 10px 28px 10px 28px;
+            background: #222;
+            cursor: pointer;
+            border-radius: 5px;
+            color: white;
+        }
+
+        .button:hover {
+            background: white;
+            color: black;
+        }
+
+        #fileElem {
+            display: none;
+        }
+
+        #drop-area {
+            border: 2px dashed coral;
+            border-radius: 20px;
+            width: 480px;
+            font-family: Lato;
+            margin: 100px auto;
+            padding: 20px;
+            color: white;
+            text-align: center;
+        }
+
+        #drop-area.highlight {
+            border-color: white;
+        }
+
+        #gallery {
+            margin-top: 10px;
+        }
+
+        #gallery img {
+            width: 150px;
+            margin-bottom: 10px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        progress,
+        progress[role][aria-valuenow] {
+            background: #485adc;
+            border-radius: 5px;
+            border: none;
+        }
+
+         ::-webkit-progress-bar {
+            background-color: lightgray;
+            border-radius: 5px;
+        }
+
+         ::-webkit-progress-value {
+            background-color: coral;
+            border-radius: 5px;
+        }
+
+         ::-moz-progress-bar {
+            background-color: white;
+            border-radius: 5px;
+        }
+    </style>
+
+
+    <script>
+    const dropArea = document.querySelector("#drop-area");
+const progressBar = document.querySelector("#progress-bar");
+const fileElem = document.querySelector("#fileElem");
+const gallery = document.querySelector("#gallery");
+const pw = document.getElementById("psw");
+const stat = document.getElementById("status");
+let uploadProgress = [];
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function highlight() {
+    dropArea.classList.add("highlight");
+}
+
+function unHighlight() {
+    dropArea.classList.remove("active");
+}
+
+dropArea.addEventListener("drop", handleDrop, false);
+fileElem.addEventListener("change", handleFiles.bind(fileElem.files));
+
+["dragenter", "dragover", "dragleave", "drop"].forEach(eventName => {
+    dropArea.addEventListener(eventName, preventDefaults, false);
+});
+
+["dragenter", "dragover"].forEach(eventName => {
+    dropArea.addEventListener(eventName, highlight, false);
+});
+
+["dragleave", "drop"].forEach(eventName => {
+    dropArea.addEventListener(eventName, unHighlight, false);
+});
+
+function handleDrop(e) {
+    if (pw.value.length === 0) {
+        return alert("You must enter a valid upload code first!");
+    }
+    const dt = e.dataTransfer;
+    let files = dt.files;
+    files = [...files];
+    initializeProgress(files.length);
+    fail = true;
+    files.forEach(uploadFile);
+}
+
+function initializeProgress(numFiles) {
+    progressBar.value = 0;
+    uploadProgress = [];
+    for (let i = numFiles; i > 0; i--) {
+        uploadProgress.push(0);
+    }
+}
+
+function updateProgress(fileNumber, percent) {
+    uploadProgress[fileNumber] = percent;
+    let total =
+        uploadProgress.reduce((tot, curr) => tot + curr, 0) /
+        uploadProgress.length;
+    console.debug("update", fileNumber, percent, total);
+    progressBar.value = total;
+}
+
+function handleFiles(files) {
+    files = [...files.target.files];
+    initializeProgress(files.length);
+    files.forEach(uploadFile);
+}
+
+function previewFile(file, fail) {
+    let reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onloadend = () => {
+        const img = document.createElement("img");
+        if (
+            file.type === "image/jpeg"||
+            file.type === "image/png" ||
+            file.type === "image/gif" ||
+            file.type === "image/tiff"
+        ) {
+            img.src = reader.result;
+        } else {
+            img.src = "{{ url_for('static', filename='document.png') }}"; // "./document.png";
+        }
+        if (fail) {
+            img.style.opacity = 0.3;
+        }
+
+        gallery.appendChild(img);
+    };
+}
+
+function uploadFile(file, i) {
+    let url = window.location.origin + "/upload";
+    let formData = new FormData();
+    formData.append("files[]", file, file.name);
+    formData.append("psw", pw.value);
+    var fail = true;
+
+    fetch(url, {
+        method: "POST",
+        body: formData
+    })
+        .then(s => {
+            updateProgress(i, 100);
+            if (s.status === 413) {
+                alert(s.statusText);
+                stat.innerHTML += s.statusText + " - " + file.name;
+            } else {
+                fetch(`/uploaded/${pw.value}`)
+                    .then(function(response) {
+                        return response.text();
+                    })
+                    .then(function(text) {
+                        // console.log('GET response text:');
+                        //console.log(text,pw.value,file.name);
+                        var fs = text.split(",");
+
+                        if (
+                            fs.includes(
+                                file.name
+                                    .replace(/[^a-z0-9\.\-]/gi, "_")
+                                    .replace(/_+/gi, "_")
+                                    .replace(/_\./gi, ".")
+                            )
+                        ) {
+                            stat.innerHTML += "success - " + file.name + "<br>";
+                            fail = false;
+                        } else {
+                            stat.innerHTML +=
+                                "FAILED! - " +
+                                file.name
+                                    .replace(/[^a-z0-9\.\-]/gi, "_")
+                                    .replace(/_+/gi, "_")
+                                    .replace(/_\./gi, ".") +
+                                "<br>";
+                        }
+
+                        previewFile(file, fail);
+                        window.scrollTo(0, document.body.scrollHeight);
+                    });
+            }
+        })
+        .catch(() => {
+            console.error("an error occured");
+        });
+}
+</script>
